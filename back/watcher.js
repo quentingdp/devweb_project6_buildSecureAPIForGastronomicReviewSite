@@ -25,10 +25,12 @@ function subExecute() {
 /*Calls a subexecution, then watch for javascript files modifications and calls a new execution in case the first one still runs.
 If the subexecution ends without any javascript files being modified in the interval, the watcher ends.
 */
+console.log('Démarrage du Watcher...');
 let childExecution = subExecute();
 const watcher = watch('./', { recursive: true });
 for await (const event of watcher) {
 	if (event.filename.endsWith('.js')) {
+		console.log('Redémarrage du sous-process...');
 		childExecution.kill('SIGKILL');
 		childExecution = subExecute();
 	}
