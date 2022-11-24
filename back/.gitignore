@@ -1,3 +1,5 @@
 #List of patterns to ignore on the back part
-foldertoignore/
-patternnamefiletoignore*
+.env
+node_modules/
+#Best practice : should we include it in git or not?
+#package-lock.json
