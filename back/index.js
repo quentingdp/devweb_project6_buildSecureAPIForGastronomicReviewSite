@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import express from 'express';
+import cors from 'cors';
 
 //main function
 const main = async () => {
@@ -13,10 +14,12 @@ const main = async () => {
 //Function that opens the web server, defines API routes and listen on port given in environment
 const openWebServer = () => {
 	const webServer = express();
+	webServer.use(express.json());
+	webServer.use(cors());
 	//for tests only!!!!!!!
 	webServer.get('/dbtest', standardDatabaseInfo);
 
-	webServer.post('/api/auth/signup', routeTester);
+	webServer.post('/api/auth/signup', apiCreateUser);
 	webServer.post('/api/auth/login', routeTester);
 	webServer.get('/api/sauces', routeTester);
 	webServer.get('/api/sauces/[a-f0-9]+/', routeTester);
@@ -74,12 +77,57 @@ const schemaDefinitionUser = () => {
 		password: String
 	});
 };
+//Testing if the input json has all required properties to be a sauce
+const isCorrectInputSauce = (sauceCandidate) => {
+	return Object.hasOwn(sauceCandidate, 'userId') && Object.hasOwn(sauceCandidate, 'name') && Object.hasOwn(sauceCandidate, 'manufacturer') && Object.hasOwn(sauceCandidate, 'description') && Object.hasOwn(sauceCandidate, 'mainPepper') && Object.hasOwn(sauceCandidate, 'imageUrl') && Object.hasOwn(sauceCandidate, 'heat');
+};
+//Testing if the input json has all required properties to be a user
+const isCorrectInputUser = (userCandidate) => {
+	return Object.hasOwn(userCandidate, 'email') && Object.hasOwn(userCandidate, 'password');
+};
 //Default answer to return if the API route doesn't exist
 /*
 const return404 = (req, res) => {
 	res.send('erreur 404');
 };
 */
+//Creates the user if the mail doesn't already exist
+const apiCreateUser = async (req, res) => {
+
+	//TODO!!!! Hash the password!!!
+
+	//Testing if the formatting is correct
+	if (isCorrectInputUser(req.body)) {
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		//Loading structure of users
+		const userSchema = schemaDefinitionUser();
+		const userModel = sessionDB.model('user', userSchema);
+		//Looking if a user of the same mail already exist. If yes, the request returns an error
+		const usersWithSameMail = await userModel.find({ email: req.body.email });
+		if (usersWithSameMail.length === 0) {
+			//We create the user in the database
+			const user = new userModel({
+				email: req.body.email,
+				password: req.body.password
+			});
+			await user.save();
+			res.status(201).json({
+				message: `L'utilisateur ${req.body.email} a été créé dans la base de données`
+			});
+		} else {
+			res.status(403).json({
+				message: `Impossible de créer l'utilisateur ${req.body.email}, un compte existe déjà avec cette adresse mail.`
+			});
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
+	} else {
+		res.status(403).json({
+			message: `Impossible de créer l'utilisateur : l'email et le mot de passe sont obligatoires.`
+		});
+	};
+}
 //TEST!!!!!! Provide standard information coming from the database
 const standardDatabaseInfo = async (req, res) => {
 	//Open connection to database
