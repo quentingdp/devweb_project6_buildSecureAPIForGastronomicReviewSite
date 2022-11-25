@@ -29,7 +29,7 @@ console.log('Démarrage du Watcher...');
 let childExecution = subExecute();
 const watcher = watch('./', { recursive: true });
 for await (const event of watcher) {
-	if (event.filename.endsWith('.js')) {
+	if (event.filename.endsWith('.js') && !event.filename.startsWith('node_modules')) {
 		console.log('Redémarrage du sous-process...');
 		childExecution.kill('SIGKILL');
 		childExecution = subExecute();
