@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import express from 'express';
 import cors from 'cors';
+import bcrypt from 'bcrypt';
 
 //main function
 const main = async () => {
@@ -20,7 +21,7 @@ const openWebServer = () => {
 	webServer.get('/dbtest', standardDatabaseInfo);
 
 	webServer.post('/api/auth/signup', apiCreateUser);
-	webServer.post('/api/auth/login', routeTester);
+	webServer.post('/api/auth/login', apiConnectUser);
 	webServer.get('/api/sauces', routeTester);
 	webServer.get('/api/sauces/[a-f0-9]+/', routeTester);
 	webServer.post('/api/sauces', routeTester);
@@ -93,9 +94,6 @@ const return404 = (req, res) => {
 */
 //Creates the user if the mail doesn't already exist
 const apiCreateUser = async (req, res) => {
-
-	//TODO!!!! Hash the password!!!
-
 	//Testing if the formatting is correct
 	if (isCorrectInputUser(req.body)) {
 		//Open connection to database
@@ -106,10 +104,12 @@ const apiCreateUser = async (req, res) => {
 		//Looking if a user of the same mail already exist. If yes, the request returns an error
 		const usersWithSameMail = await userModel.find({ email: req.body.email });
 		if (usersWithSameMail.length === 0) {
+			//We hash the password
+			const hashedPassword = await bcrypt.hash(req.body.password, parseInt(process.env.SALT_COMPLEXITY));
 			//We create the user in the database
 			const user = new userModel({
 				email: req.body.email,
-				password: req.body.password
+				password: hashedPassword
 			});
 			await user.save();
 			res.status(201).json({
@@ -127,7 +127,51 @@ const apiCreateUser = async (req, res) => {
 			message: `Impossible de créer l'utilisateur : l'email et le mot de passe sont obligatoires.`
 		});
 	};
-}
+};
+//Login the user if the email + password matches
+const apiConnectUser = async (req, res) => {
+
+
+
+	//work out what is expected as for the TOKEN content!!!
+
+
+
+	//Testing if the formatting is correct
+	if (isCorrectInputUser(req.body)) {
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		//Loading structure of users
+		const userSchema = schemaDefinitionUser();
+		const userModel = sessionDB.model('user', userSchema);
+		//Looking if a user of the same mail already exist. If yes, the request returns an error
+		const usersWithSameMail = await userModel.find({ email: req.body.email });
+		if (usersWithSameMail.length !== 0) {
+			//We compare the password provided to the hashed password saved in the database
+			const matchPassword = await bcrypt.compare(req.body.password, usersWithSameMail[0].password);
+			if (matchPassword) {
+				res.status(200).json({
+					userId: usersWithSameMail[0]._id,
+					token: `TOKENPIPO`
+				});
+			} else {
+				res.status(401).json({
+					message: `Mot de passe incorrect`
+				});
+			};
+		} else {
+			res.status(403).json({
+				message: `Le compte utilisateur ${req.body.email} n'existe pas.`
+			});
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
+	} else {
+		res.status(403).json({
+			message: `Impossible de connecter l'utilisateur : l'email et le mot de passe sont obligatoires.`
+		});
+	};
+};
 //TEST!!!!!! Provide standard information coming from the database
 const standardDatabaseInfo = async (req, res) => {
 	//Open connection to database
