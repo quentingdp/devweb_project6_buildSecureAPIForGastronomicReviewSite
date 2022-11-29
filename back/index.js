@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
+import { unlink } from 'node:fs'
 
 /**
  * main function
@@ -29,11 +30,11 @@ const openWebServer = () => {
 	webServer.post('/api/auth/signup', apiCreateUser);
 	webServer.post('/api/auth/login', apiConnectUser);
 	webServer.get('/api/sauces', apiGetAllSauces);
-	webServer.get('/api/sauces/[a-f0-9]+/', routeTester);
+	webServer.get('/api/sauces/[a-f0-9]+/', apiGetOneSauce);
 	webServer.post('/api/sauces', upload.single("image"), apiPostNewSauce);
-	webServer.put('/api/sauces/[a-f0-9]+/', routeTester);
-	webServer.delete('/api/sauces/[a-f0-9]+/', routeTester);
-	webServer.post('/api/sauces/[a-f0-9]+/like/', routeTester);
+	webServer.put('/api/sauces/[a-f0-9]+/', upload.single("image"), apiUpdateOneSauce);
+	webServer.delete('/api/sauces/[a-f0-9]+/', apiDeleteOneSauce);
+	webServer.post('/api/sauces/[a-f0-9]+/like/', apiLikeSauce);
 	/*
 	webServer.get('/*', return404);
 	webServer.post('/*', return404);
@@ -43,23 +44,6 @@ const openWebServer = () => {
 	webServer.listen(process.env.SERVER_PORT);
 	console.log(`Serveur web démarré : Connectez-vous sur http://localhost:${process.env.SERVER_PORT}/ pour le contacter`);
 };
-
-
-//TESTS!!!! How to upload an image. Works with Postman, but very basically, and was not tested the sending of JSON properties + image
-/**
- * TEST... to be sure the route exists, a basic function
- * @param {stream.Readable} req 
- * @param {stream.Writable} res 
- */
-const routeTester = (req, res) => {
-	res.send("La route d'API existe");
-};
-//Default answer to return if the API route doesn't exist
-/*
-const return404 = (req, res) => {
-	res.send('erreur 404');
-};
-*/
 
 /**
  * Open connection to database
@@ -125,6 +109,14 @@ const isCorrectInputUser = (userCandidate) => {
 	return Object.hasOwn(userCandidate, 'email') && Object.hasOwn(userCandidate, 'password');
 };
 /**
+ * Testing if the input json has all required properties to update a like
+ * @param {string} likeCandidate Parameter json-formatted that is a candidate to hold all like properties
+ * @returns {boolean}
+ */
+const isCorrectInputLike = (likeCandidate) => {
+	return Object.hasOwn(likeCandidate, 'userId') && Object.hasOwn(likeCandidate, 'like');
+};
+/**
  * Testing if the token is valid
  * @param {stream.Readable.headers} reqHeaders 
  * @returns {boolean}
@@ -139,6 +131,17 @@ const isAuthorized = (reqHeaders) => {
 		console.error("La requête n'a pas envoyé d'entête Authorization correctement formatté.");
 		return false;
 	};
+};
+/**
+ * This function deletes the file available in provided URL
+ * @param {string} fileUrl URL of the file to delete
+ */
+const deleteFile = async (fileUrl) => {
+	//Extracting only the local part of the URL
+	const localFileUrl = fileUrl.split('/').slice(3).join('/');
+	unlink(localFileUrl, (err) => {
+		if (err) { console.error(err); };
+	});
 };
 /**
  * Function that deduces the user id launching the requests out of the bearer token
@@ -266,6 +269,34 @@ const apiGetAllSauces = async (req, res) => {
 	};
 };
 /**
+ * Get property of one sauce given in parameter
+ * @param {stream.Readable} req 
+ * @param {stream.Writable} res 
+ */
+const apiGetOneSauce = async (req, res) => {
+	if (isAuthorized(req.headers)) {
+		//Extracting the id of the sauce from the URL
+		const sauceId = req.url.split('/').slice(-1)[0];
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		const sauceSchema = schemaDefinitionSauce();
+		const sauceModel = sessionDB.model('sauce', sauceSchema);
+		//Try to get the sauce from the database, in case the query is invalid
+		try {
+			const thisSauce = await sauceModel.find({ "_id": sauceId });
+			res.status(200).send(thisSauce[0]);
+		} catch (e) {
+			res.status(404).json({ message: "La sauce demandée n'existe pas." })
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
+	} else {
+		res.status(401).json({
+			message: `Utilisateur non-autorisé`
+		});
+	};
+};
+/**
  * Creates the new sauce provided
  * @param {stream.Readable} req 
  * @param {stream.Writable} res 
@@ -302,7 +333,207 @@ const apiPostNewSauce = async (req, res) => {
 			res.status(403).json({
 				message: `Impossible de créer la sauce : le nom, le fabricant, la description, le piment principal et la chaleur sont obligatoires.`
 			});
-		}
+		};
+	} else {
+		res.status(401).json({
+			message: `Utilisateur non-autorisé`
+		});
+	};
+};
+/**
+ * Updates the sauce whose id is given in parameter
+ * @param {stream.Readable} req 
+ * @param {stream.Writable} res 
+ */
+const apiUpdateOneSauce = async (req, res) => {
+	if (isAuthorized(req.headers)) {
+		//Extracting the id of the sauce from the URL
+		const sauceId = req.url.split('/').slice(-1)[0];
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		const sauceSchema = schemaDefinitionSauce();
+		const sauceModel = sessionDB.model('sauce', sauceSchema);
+		//Try to get the sauce from the database, in case the query is invalid. Then, we update it
+		try {
+			const thisSauce = await sauceModel.find({ "_id": sauceId });
+			if (thisSauce[0].userId === getUserIdConnected(req.headers)) {
+				//We could have 2 different inputs : we split the cases either we receive an "application/json" body (without image) or a "multipart/form-data" (with image)
+				if (req.headers["content-type"] === "application/json") {
+					const sauceCandidate = req.body;
+					await sauceModel.updateMany({ "_id": sauceId }, {
+						name: sauceCandidate.name,
+						manufacturer: sauceCandidate.manufacturer,
+						description: sauceCandidate.description,
+						mainPepper: sauceCandidate.mainPepper,
+						heat: sauceCandidate.heat
+					});
+					res.status(200).json({ message: `La sauce ${sauceId} a été mise à jour.` });
+				} else {
+					const sauceCandidate = JSON.parse(req.body.sauce);
+					await deleteFile(thisSauce[0].imageUrl);
+					await sauceModel.updateMany({ "_id": sauceId }, {
+						name: sauceCandidate.name,
+						manufacturer: sauceCandidate.manufacturer,
+						description: sauceCandidate.description,
+						mainPepper: sauceCandidate.mainPepper,
+						imageUrl: `${process.env.SERVER_HOST}:${process.env.SERVER_PORT}/${req.file.path.replace('\\', '/')}`,
+						heat: sauceCandidate.heat
+					});
+					res.status(200).json({ message: `La sauce ${sauceId} a été mise à jour.` });
+				};
+			} else {
+				res.status(403).json({ message: "L'utilisateur connecté n'a pas le droit d'effectuer l'opération demandée" });
+			};
+		} catch (e) {
+			res.status(400).json({ message: "Erreur dans la mise à jour de la sauce." });
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
+	} else {
+		res.status(401).json({
+			message: `Utilisateur non-autorisé`
+		});
+	};
+};
+/**
+ * Deletes the sauce whose id is given in parameter from the database
+ * @param {stream.Readable} req 
+ * @param {stream.Writable} res 
+ */
+const apiDeleteOneSauce = async (req, res) => {
+	if (isAuthorized(req.headers)) {
+		//Extracting the id of the sauce from the URL
+		const sauceId = req.url.split('/').slice(-1)[0];
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		const sauceSchema = schemaDefinitionSauce();
+		const sauceModel = sessionDB.model('sauce', sauceSchema);
+		//Try to get the sauce from the database, in case the query is invalid. Then, we delete it
+		try {
+			const thisSauce = await sauceModel.find({ "_id": sauceId });
+			if (thisSauce[0].userId === getUserIdConnected(req.headers)) {
+				await deleteFile(thisSauce[0].imageUrl);
+				await sauceModel.deleteOne({ "_id": sauceId });
+				res.status(200).json({ message: `La sauce ${sauceId} a été supprimée de la base de données.` });
+			} else {
+				res.status(403).json({ message: "L'utilisateur connecté n'a pas le droit d'effectuer l'opération demandée" });
+			};
+		} catch (e) {
+			res.status(404).json({ message: "La sauce demandée n'existe pas." });
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
+	} else {
+		res.status(401).json({
+			message: `Utilisateur non-autorisé`
+		});
+	};
+};
+/**
+ * Manages the like of the connected user to the sauce whose id is given in parameter
+ * @param {stream.Readable} req 
+ * @param {stream.Writable} res 
+ */
+const apiLikeSauce = async (req, res) => {
+	if (isAuthorized(req.headers)) {
+		//Extracting the id of the sauce from the URL
+		const sauceId = req.url.split('/').slice(-2)[0];
+		//Open connection to database
+		const sessionDB = await sessionDBConnect();
+		const sauceSchema = schemaDefinitionSauce();
+		const sauceModel = sessionDB.model('sauce', sauceSchema);
+		//Try to get the sauce from the database, in case the query is invalid. Then, we update the like
+		try {
+			const thisSauce = await sauceModel.find({ "_id": sauceId });
+			const { likes: currentLikes, dislikes: currentDislikes, usersLiked: newUsersLiked, usersDisliked: newUsersDisliked } = thisSauce[0];
+			if (isCorrectInputLike(req.body)) {
+				const { userId: userIdCandidate, like } = req.body;
+				const userId = getUserIdConnected(req.headers);
+				if (userId === userIdCandidate) {
+					//Extracts information about the current like status of the user on this sauce
+					//No control is done on potentiel corruption, i.e. we consider that at least one of the 2 values in these variables is -1
+					const indexInLike = newUsersLiked.findIndex((element) => element === userId);
+					const indexInDislike = newUsersDisliked.findIndex((element) => element === userId);
+					//Updating the like. We check the conditions depending of the like provided, and the status of the like before the api calling
+					switch (like) {
+						case 1: {
+							if (indexInDislike !== -1) {
+								newUsersLiked.push(userId);
+								newUsersDisliked.splice(indexInDislike, 1);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									likes: currentLikes + 1,
+									dislikes: currentDislikes - 1,
+									usersLiked: newUsersLiked,
+									usersDisliked: newUsersDisliked
+								});
+							} else if (indexInLike === -1) {
+								newUsersLiked.push(userId);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									likes: currentLikes + 1,
+									usersLiked: newUsersLiked
+								});
+							};
+							res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` });
+							break;
+						};
+						case 0: {
+							if (indexInLike !== -1) {
+								newUsersLiked.splice(indexInLike, 1);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									likes: currentLikes - 1,
+									usersLiked: newUsersLiked
+								});
+							} else if (indexInDislike !== -1) {
+								newUsersDisliked.splice(indexInDislike, 1);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									dislikes: currentDislikes - 1,
+									usersDisliked: newUsersDisliked
+								});
+							};
+							res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` });
+							break;
+						};
+						case -1: {
+							if (indexInLike !== -1) {
+								newUsersLiked.splice(indexInLike, 1);
+								newUsersDisliked.push(userId);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									likes: currentLikes - 1,
+									dislikes: currentDislikes + 1,
+									usersLiked: newUsersLiked,
+									usersDisliked: newUsersDisliked
+								});
+							} else if (indexInDislike === -1) {
+								newUsersDisliked.push(userId);
+								await sauceModel.updateMany({ "_id": sauceId }, {
+									dislikes: currentDislikes + 1,
+									usersDisliked: newUsersDisliked
+								});
+							};
+							res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` });
+							break;
+						};
+						default: {
+							res.status(403).json({
+								message: `Impossible de mettre à jour le like : la valeur du like n'est pas conforme.`
+							});
+						};
+					};
+				} else {
+					res.status(403).json({
+						message: `Vous ne pouvez mettre à jour les likes d'un autre utilisateur.`
+					});
+				};
+			} else {
+				res.status(403).json({
+					message: `Impossible de mettre à jour le like : le UserId et le like sont obligatoires.`
+				});
+			};
+		} catch (e) {
+			res.status(400).json({ message: "Erreur dans la mise à jour de la sauce." });
+		};
+		//Close connection to database
+		sessionDBDisconnect(sessionDB);
 	} else {
 		res.status(401).json({
 			message: `Utilisateur non-autorisé`
