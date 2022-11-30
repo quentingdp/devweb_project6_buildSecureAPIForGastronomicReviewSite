@@ -1,6 +1,5 @@
 #List of patterns to ignore on the back part
 .env
+package-lock.json
 node_modules/
 uploads/
-#Best practice : should we include it in git or not?
-#package-lock.json
