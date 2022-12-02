@@ -1,20 +1,57 @@
 //Import of required modules in this page
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-import express from 'express';
-import cors from 'cors';
-import bcrypt from 'bcrypt';
-import multer from 'multer';
+import { config } from 'dotenv'
+import mongoose from 'mongoose'
+import express from 'express'
+import cors from 'cors'
+import bcrypt from 'bcrypt'
+import multer from 'multer'
 import { unlink } from 'node:fs'
 
-/**
- * main function
- */
-const main = async () => {
-	//Activating environment variables management
-	dotenv.config();
-	openWebServer();
-};
+//Import internal dependancies
+import databaseConfig from './databaseConfig.js'
+import auth_router from './routes/auth.js'
+import sauces_router from './routes/sauce.js'
+
+//Activating environment variables management
+config()
+
+//Initialization of web server + all its properties
+const webServer = express()
+webServer.use(express.json())
+webServer.use(cors({
+	"origin": "*",
+	"methods": "GET,PUT,POST,DELETE",
+	"preflightContinue": false,
+	"optionsSuccessStatus": 204
+}))
+webServer.use(express.urlencoded({ extended: true }))
+webServer.use('/uploads', express.static('./uploads'))
+
+//Defining routes
+webServer.use('/api/auth', auth_router)
+webServer.use('/api/sauces', sauces_router)
+
+//Default : not implemented routes
+webServer.get('*', (req, res) => res.status(501).send("Not implemented"))
+webServer.post('*', (req, res) => res.status(501).send("Not implemented"))
+webServer.put('*', (req, res) => res.status(501).send("Not implemented"))
+webServer.delete('*', (req, res) => res.status(501).send("Not implemented"))
+
+//Connects the MongoDB database, then open the web server if successfull
+databaseConfig
+	.then(() => console.log('La connexion à MongoDB fonctionne.'))
+	.then(() => {
+		webServer.listen(process.env.SERVER_PORT, () => {
+			console.log(`Serveur web démarré : Connectez-vous sur http://localhost:${process.env.SERVER_PORT}/ pour le contacter`)
+		})
+	})
+	.catch((err) => console.error(`Impossible de se connecter à la MongoDB : ${err}`))
+
+//OLD MAIN FUNCTION!!! (+ all following in the file)
+////Activating environment variables management
+//dotenv.config();
+//openWebServer();
+
 
 /**
  * Function that opens the web server, defines API routes and listen on port given in environment
@@ -540,9 +577,3 @@ const apiLikeSauce = async (req, res) => {
 		});
 	};
 };
-
-
-/**********************************************************************
-****************   Launching the main function    *********************
-**********************************************************************/
-main().catch(err => console.log(err));
