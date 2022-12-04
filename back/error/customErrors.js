@@ -7,6 +7,9 @@ export class CustomError extends Error {
 			case 'UserError':
 				this.statusCode = 403
 				break
+			case 'SauceError':
+				this.statusCode = 404
+				break
 			case 'RequestError':
 				this.statusCode = 403
 				break
@@ -14,6 +17,7 @@ export class CustomError extends Error {
 				this.statusCode = 401
 				break
 			default:
+				console.error('Ce cas ne devrait pas se produire: merci de corriger la logique du back')
 				this.statusCode = 500
 			//We should never reach this case, as it means the error is not declared
 			//If an error is thrown by another module, it won't be managed by this class
@@ -22,5 +26,6 @@ export class CustomError extends Error {
 }
 
 export class UserError extends CustomError { }
+export class SauceError extends CustomError { }
 export class RequestError extends CustomError { }
 export class AuthenticationError extends CustomError { }

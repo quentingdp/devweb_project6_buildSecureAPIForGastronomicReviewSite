@@ -9,10 +9,10 @@ const sauceSchema = Schema({
 	mainPepper: { type: String, required: true },
 	imageUrl: { type: String, required: true },
 	heat: { type: Number, required: true },
-	likes: Number,
-	dislikes: Number,
-	usersLiked: [String],
-	usersDisliked: [String]
+	likes: { type: Number, required: true },
+	dislikes: { type: Number, required: true },
+	usersLiked: { type: [String], required: true },
+	usersDisliked: { type: [String], required: true }
 })
 
 export default model('sauce', sauceSchema)
