@@ -2,6 +2,7 @@
 import { config } from 'dotenv'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import mongooseError from 'mongoose-error'
 
 //Import internal dependancies
 import User from '../models/user.js'
@@ -12,7 +13,7 @@ config()
 
 export const createUser = async (req, res, next) => {
 	try {
-		const { email, password } = req.body;
+		const { email, password } = req.body
 		if (!email || !password) {
 			throw new RequestError(`Impossible de créer l'utilisateur : l'email et le mot de passe sont obligatoires.`)
 		}
@@ -26,6 +27,7 @@ export const createUser = async (req, res, next) => {
 			.then(() => res.status(201).json({
 				message: `L'utilisateur ${email} a été créé dans la base de données`
 			}))
+			.catch((err) => { throw mongooseError(err) })
 	} catch (err) {
 		next(err)
 	}
@@ -33,23 +35,26 @@ export const createUser = async (req, res, next) => {
 
 export const connectUser = async (req, res, next) => {
 	try {
-		const { email, password } = req.body;
+		const { email, password } = req.body
 		if (!email || !password) {
-			throw new RequestError(`Impossible de créer l'utilisateur : l'email et le mot de passe sont obligatoires.`)
+			throw new RequestError(`Impossible de connecter l'utilisateur : l'email et le mot de passe sont obligatoires.`)
 		}
-		const usersWithSameMail = await User.find({ email: email })
-		if (usersWithSameMail.length === 0) {
+		let usersWithSameMail
+		await User.findOne({ email: email })
+			.then((data) => { usersWithSameMail = data })
+			.catch((err) => { throw mongooseError(err) })
+		if (!usersWithSameMail) {
 			throw new UserError(`Le compte utilisateur ${email} n'existe pas.`)
 		}
-		const matchPassword = await bcrypt.compare(password, usersWithSameMail[0].password)
+		const matchPassword = await bcrypt.compare(password, usersWithSameMail.password)
 		if (!matchPassword) {
 			throw new AuthenticationError(`Mot de passe incorrect`)
 		}
 		const token = jwt.sign({
-			userId: usersWithSameMail[0]._id
+			userId: usersWithSameMail._id
 		}, process.env.JWT_SECRET_KEY, { expiresIn: process.env.JWT_EXPIRES })
 		return res.status(200).json({
-			userId: usersWithSameMail[0]._id,
+			userId: usersWithSameMail._id,
 			token: token
 		})
 	} catch (err) {

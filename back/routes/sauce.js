@@ -2,15 +2,15 @@
 import express from 'express'
 
 //Import internal dependancies
+import authorize from '../middlewares/authorize.js'
+import multer from '../middlewares/multer.js'
 import { getAllSauces, getOneSauce, createSauce, updateSauce, deleteSauce, updateLikeSauce } from '../controllers/sauce.js'
 import error from '../middlewares/error.js'
-import multer from '../middlewares/multer.js'
-import jwtCheck from '../middlewares/jwtCheck.js'
 
 let router = express.Router()
 
 //Adding the middleware checking of the Json Web Token validity at the beginning
-router.use(jwtCheck)
+router.use(authorize)
 
 router.get('/', getAllSauces);
 router.get('/:id', getOneSauce);
