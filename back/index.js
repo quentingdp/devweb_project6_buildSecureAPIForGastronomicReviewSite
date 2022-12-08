@@ -28,10 +28,7 @@ webServer.use('/api/auth', auth_router)
 webServer.use('/api/sauces', sauces_router)
 
 //Default : not implemented routes
-webServer.get('*', (req, res) => res.status(501).send("Not implemented"))
-webServer.post('*', (req, res) => res.status(501).send("Not implemented"))
-webServer.put('*', (req, res) => res.status(501).send("Not implemented"))
-webServer.delete('*', (req, res) => res.status(501).send("Not implemented"))
+webServer.all('*', (req, res) => res.status(501).send("Not implemented"))
 
 //Connects the MongoDB database, then open the web server if successfull
 databaseConfig

@@ -23,7 +23,7 @@ const checkSauceIdValidity = (sauceId) => {
 
 export const getAllSauces = async (req, res, next) => {
 	try {
-		await Sauce.find()
+		Sauce.find()
 			.then((data) => res.status(200).send(data))
 			.catch((err) => { throw mongooseError(err) })
 	} catch (err) {
@@ -36,7 +36,7 @@ export const getOneSauce = async (req, res, next) => {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		await Sauce.findOne({ "_id": sauceId })
+		Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -68,7 +68,7 @@ export const createSauce = async (req, res, next) => {
 			usersLiked: [],
 			usersDisliked: []
 		})
-		await sauce.save()
+		sauce.save()
 			.then(() => res.status(201).json({
 				message: `La sauce a été créé dans la base de données`
 			}))
@@ -91,7 +91,7 @@ export const updateSauce = async (req, res, next) => {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		await Sauce.findOne({ "_id": sauceId })
+		Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -159,7 +159,7 @@ export const deleteSauce = async (req, res, next) => {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		await Sauce.findOne({ "_id": sauceId })
+		Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -186,7 +186,7 @@ export const updateLikeSauce = async (req, res, next) => {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		await Sauce.findOne({ "_id": sauceId })
+		Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -213,7 +213,7 @@ export const updateLikeSauce = async (req, res, next) => {
 				if (indexInDislike !== -1) {
 					newUsersLiked.push(res.locals.userId)
 					newUsersDisliked.splice(indexInDislike, 1)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						likes: currentLikes + 1,
 						dislikes: currentDislikes - 1,
 						usersLiked: newUsersLiked,
@@ -223,12 +223,14 @@ export const updateLikeSauce = async (req, res, next) => {
 						.catch((err) => { throw mongooseError(err) })
 				} else if (indexInLike === -1) {
 					newUsersLiked.push(res.locals.userId)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						likes: currentLikes + 1,
 						usersLiked: newUsersLiked
 					})
 						.then(() => res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` }))
 						.catch((err) => { throw mongooseError(err) })
+				} else {
+					res.status(204).json({})
 				}
 				break
 			}
@@ -236,7 +238,7 @@ export const updateLikeSauce = async (req, res, next) => {
 			case 0: {
 				if (indexInLike !== -1) {
 					newUsersLiked.splice(indexInLike, 1)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						likes: currentLikes - 1,
 						usersLiked: newUsersLiked
 					})
@@ -244,12 +246,14 @@ export const updateLikeSauce = async (req, res, next) => {
 						.catch((err) => { throw mongooseError(err) })
 				} else if (indexInDislike !== -1) {
 					newUsersDisliked.splice(indexInDislike, 1)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						dislikes: currentDislikes - 1,
 						usersDisliked: newUsersDisliked
 					})
 						.then(() => res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` }))
 						.catch((err) => { throw mongooseError(err) })
+				} else {
+					res.status(204).json({})
 				}
 				break
 			}
@@ -258,7 +262,7 @@ export const updateLikeSauce = async (req, res, next) => {
 				if (indexInLike !== -1) {
 					newUsersLiked.splice(indexInLike, 1)
 					newUsersDisliked.push(res.locals.userId)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						likes: currentLikes - 1,
 						dislikes: currentDislikes + 1,
 						usersLiked: newUsersLiked,
@@ -268,12 +272,14 @@ export const updateLikeSauce = async (req, res, next) => {
 						.catch((err) => { throw mongooseError(err) })
 				} else if (indexInDislike === -1) {
 					newUsersDisliked.push(res.locals.userId)
-					await Sauce.updateOne({ "_id": sauceId }, {
+					Sauce.updateOne({ "_id": sauceId }, {
 						dislikes: currentDislikes + 1,
 						usersDisliked: newUsersDisliked
 					})
 						.then(() => res.status(200).json({ message: `Les likes sur la sauce ${sauceId} ont été mis à jour.` }))
 						.catch((err) => { throw mongooseError(err) })
+				} else {
+					res.status(204).json({})
 				}
 				break
 			}
