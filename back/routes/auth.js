@@ -7,6 +7,7 @@ import error from '../middlewares/error.js'
 
 let router = express.Router()
 
+//Defining routing for Users
 router.post('/signup', createUser)
 router.post('/login', connectUser)
 

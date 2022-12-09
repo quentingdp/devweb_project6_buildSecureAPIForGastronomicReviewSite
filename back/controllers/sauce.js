@@ -21,6 +21,12 @@ const checkSauceIdValidity = (sauceId) => {
 	}
 }
 
+/**
+ * Controller for recovering all Sauces data : we send the data at the same format Mongo DB returns it
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const getAllSauces = async (req, res, next) => {
 	try {
 		Sauce.find()
@@ -31,12 +37,18 @@ export const getAllSauces = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for recovering the Sauce which id is given : we send the data at the same format Mongo DB returns it (after verifying the Sauce id exist)
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const getOneSauce = async (req, res, next) => {
 	try {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		Sauce.findOne({ "_id": sauceId })
+		await Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -48,6 +60,12 @@ export const getOneSauce = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for creating a new sauce from scratch : we check all the required fields exist, then create the sauce. NB: in the error management, we rollback multer, as the file is preloaded previously any check
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const createSauce = async (req, res, next) => {
 	try {
 		const { name, manufacturer, description, mainPepper, heat } = JSON.parse(req.body.sauce)
@@ -86,12 +104,18 @@ export const createSauce = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for updating a sauce : we check the sauce exist, then if the user connected is the sauce owner, then depending if the image is provided or not, we update only the provided fields
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const updateSauce = async (req, res, next) => {
 	try {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		Sauce.findOne({ "_id": sauceId })
+		await Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -154,12 +178,18 @@ export const updateSauce = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for deleting a sauce : we check the sauce exist, then if the user connected is the sauce owner, then we delete the image of the sauce and the sauce from the database
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const deleteSauce = async (req, res, next) => {
 	try {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		Sauce.findOne({ "_id": sauceId })
+		await Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -181,12 +211,20 @@ export const deleteSauce = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for updating a like on a sauce : We check the sauce exist, then if the format of informations provided are correct.
+ * NB: userId is expected in the body, but we don't trust by default the information sent at this place. So we do an additionnal check if the userId in the body equals the userId of the JWT
+ * At last, depending on the value of the like and the pre-existing status, we update the sauce informations with like and dislike fields
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const updateLikeSauce = async (req, res, next) => {
 	try {
 		const sauceId = req.params.id
 		checkSauceIdValidity(sauceId)
 		let thisSauce
-		Sauce.findOne({ "_id": sauceId })
+		await Sauce.findOne({ "_id": sauceId })
 			.then((data) => { thisSauce = data })
 			.catch((err) => { throw mongooseError(err) })
 		if (!thisSauce) {
@@ -201,8 +239,10 @@ export const updateLikeSauce = async (req, res, next) => {
 			throw new AuthorizationError(`Vous ne pouvez mettre à jour les likes d'un autre utilisateur.`)
 		}
 		//Extracts information about the current like status of the user on this sauce
-		const indexInLike = newUsersLiked.findIndex((element) => element === userId)
-		const indexInDislike = newUsersDisliked.findIndex((element) => element === userId)
+		//If indexInLike has a positive value, it means or user had previously liked the sauce. If indexInDislike is positive, our user previously disliked. We'll use this values in the followint to switch the cases
+		const indexInLike = newUsersLiked.findIndex((element) => element === res.locals.userId)
+		const indexInDislike = newUsersDisliked.findIndex((element) => element === res.locals.userId)
+		//Additional test to check if the data is not corrupted : a user cannot like and dislike at the same time a sauce
 		if (indexInLike !== -1 && indexInDislike !== -1) {
 			throw new DataConsistencyError(`L'état de la base de données est incohérent sur les likes de la sauce ${sauceId}`)
 		}
@@ -283,6 +323,7 @@ export const updateLikeSauce = async (req, res, next) => {
 				}
 				break
 			}
+			// the request has provided a like value which is not -1, 0 or 1 : it is meaningless
 			default: {
 				throw new RequestError(`Impossible de mettre à jour le like : la valeur du like n'est pas conforme.`)
 			}

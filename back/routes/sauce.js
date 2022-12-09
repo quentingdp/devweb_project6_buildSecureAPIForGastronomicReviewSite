@@ -12,6 +12,7 @@ let router = express.Router()
 //Adding the middleware checking of the Json Web Token validity at the beginning
 router.use(authorize)
 
+//Defining routing for Sauces
 router.get('/', getAllSauces);
 router.get('/:id', getOneSauce);
 router.post('/', multer, createSauce);

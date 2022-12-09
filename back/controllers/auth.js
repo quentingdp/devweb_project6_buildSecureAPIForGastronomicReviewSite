@@ -11,6 +11,12 @@ import { RequestError, UserError, AuthenticationError } from '../error/customErr
 //Activating environment variables management
 config()
 
+/**
+ * Controller for User Creation : if we receive the email + password, we hash the password then save the new user in the database. If the email already exist, it'll be catched directly by mongoose constraints
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ */
 export const createUser = async (req, res, next) => {
 	try {
 		const { email, password } = req.body
@@ -33,6 +39,13 @@ export const createUser = async (req, res, next) => {
 	}
 }
 
+/**
+ * Controller for User login : we first check that the user exist, then we compare the password provided to the hashed password stored. If ok, we provide the JWT token in response.
+ * @param {*} req 
+ * @param {*} res 
+ * @param {*} next 
+ * @returns 
+ */
 export const connectUser = async (req, res, next) => {
 	try {
 		const { email, password } = req.body
