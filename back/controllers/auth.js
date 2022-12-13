@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import mongooseError from 'mongoose-error'
+import passwordValidator from 'password-validator'
 
 //Import internal dependancies
 import User from '../models/user.js'
@@ -24,6 +25,16 @@ export const createUser = async (req, res, next) => {
 			throw new RequestError(`Impossible de créer l'utilisateur : l'email et le mot de passe sont obligatoires.`)
 		}
 		//As for the recommandations, we don't test if the email already exist in the database, and we let mongoose throw it's own error when we'll try to save
+		//We check if the password requested is strong enough : minimum lenght 8 + must have uppercase, lowercase and digit
+		let passwordPattern = new passwordValidator();
+		passwordPattern
+			.is().min(8)
+			.has().uppercase()
+			.has().lowercase()
+			.has().digits()
+		if (!passwordPattern.validate(password)) {
+			throw new RequestError(`Le mot de passe proposé n'est pas assez complexe`)
+		}
 		const hashedPassword = await bcrypt.hash(password, parseInt(process.env.SALT_COMPLEXITY))
 		const user = new User({
 			email: email,
